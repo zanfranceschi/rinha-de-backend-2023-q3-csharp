@@ -8,9 +8,6 @@ builder.Services.AddNpgsqlDataSource(
     Environment.GetEnvironmentVariable("DB_CONNECTION_STRING") ??
     "ERRO de connection string!!!");
 
-//builder.Services.AddSingleton(sp => new ConcurrentQueue<Pessoa>());
-//builder.Services.AddHostedService<Worker>();
-
 var app = builder.Build();
 
 app.MapGet("/", async (HttpContext http, NpgsqlConnection conn) =>
@@ -39,7 +36,10 @@ app.MapPost("/pessoas", async (HttpContext http, NpgsqlConnection conn, Pessoa p
 
     foreach (var item in pessoa.Stack ?? Enumerable.Empty<string>())
         if (item.Length > 32 || item.Length == 0)
+        {
+            http.Response.StatusCode = 422;
             return "unprocessable entity - stack zuada";
+        }
 
     await using (conn)
     {
@@ -133,7 +133,7 @@ app.MapGet("/pessoas", async (HttpContext http, NpgsqlConnection conn, string? t
             resultado.Add(new Pessoa { Id = id, Apelido = apelido, Nome = nome, Nascimento = DateOnly.FromDateTime(nascimento), Stack = stack });
         }
     }
-    return new { pessoas = resultado, erro = "null" };
+    return new { pessoas = resultado, erro = "N/A" };
 });
 
 app.MapGet("/contagem-pessoas", async (NpgsqlConnection conn) =>
