@@ -18,7 +18,7 @@ services:
           memory: '2.1GB'
   
   api01:
-    image: rinha-api
+    image: zanfranceschi/rinha-api-2023
     hostname: rinha-api01
     depends_on:
       - db
@@ -33,7 +33,7 @@ services:
           memory: '0.4GB'
   
   api02:
-    image: rinha-api
+    image: zanfranceschi/rinha-api-2023
     hostname: rinha-api02
     depends_on:
       - db
