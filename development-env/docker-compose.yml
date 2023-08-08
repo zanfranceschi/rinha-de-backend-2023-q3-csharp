@@ -10,5 +10,4 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - /home/zanfranceschi/docker-volumes/rinha-db:/var/lib/postgresql/data
       - ./ddl.sql:/docker-entrypoint-initdb.d/ddl.sql

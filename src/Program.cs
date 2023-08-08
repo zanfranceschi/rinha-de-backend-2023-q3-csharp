@@ -41,45 +41,40 @@ app.MapPost("/pessoas", async (HttpContext http, NpgsqlConnection conn, Pessoa p
         if (item.Length > 32 || item.Length == 0)
             return "unprocessable entity - stack zuada";
 
-    bool apelidoUsado = false;
-
     await using (conn)
     {
         await conn.OpenAsync();
 
-        await using (var selectCmd = conn.CreateCommand())
-        {
-            selectCmd.CommandText = "select count(apelido) from pessoas where apelido = $1";
-            selectCmd.Parameters.AddWithValue(pessoa.Apelido);
-            var resultado = await selectCmd.ExecuteScalarAsync();
-            apelidoUsado = int.Parse(resultado.ToString()) > 0;
-        }
-
-        if (apelidoUsado)
-        {
-            http.Response.StatusCode = 422;
-            return "unprocessable entity - apelido já usado";
-        }
-
         pessoa.Id = Guid.NewGuid();
 
-        await using var insertCmd = conn.CreateCommand();
-        insertCmd.CommandText = "insert into pessoas (id, apelido, nome, nascimento, stack, busca) values ($1, $2, $3, $4, $5, $6)";
-        insertCmd.Parameters.AddWithValue(pessoa.Id);
-        insertCmd.Parameters.AddWithValue(pessoa.Apelido);
-        insertCmd.Parameters.AddWithValue(pessoa.Nome);
-        insertCmd.Parameters.AddWithValue(pessoa.Nascimento.Value);
+        try
+        {
+            await using var insertCmd = conn.CreateCommand();
+            insertCmd.CommandText = "insert into pessoas (id, apelido, nome, nascimento, stack, busca) values ($1, $2, $3, $4, $5, $6)";
+            insertCmd.Parameters.AddWithValue(pessoa.Id);
+            insertCmd.Parameters.AddWithValue(pessoa.Apelido);
+            insertCmd.Parameters.AddWithValue(pessoa.Nome);
+            insertCmd.Parameters.AddWithValue(pessoa.Nascimento.Value);
 
-        if (pessoa.Stack is not null)
-            insertCmd.Parameters.AddWithValue(NpgsqlDbType.Jsonb, pessoa.Stack);
-        else
-            insertCmd.Parameters.AddWithValue(DBNull.Value);
+            if (pessoa.Stack is not null)
+                insertCmd.Parameters.AddWithValue(NpgsqlDbType.Jsonb, pessoa.Stack);
+            else
+                insertCmd.Parameters.AddWithValue(DBNull.Value);
 
-        var busca = $"{pessoa.Apelido}{pessoa.Nome}{string.Join("", pessoa.Stack?.Select(i => i) ?? new List<string>())}";
+            var busca = $"{pessoa.Apelido}{pessoa.Nome}{string.Join("", pessoa.Stack?.Select(i => i) ?? new List<string>())}";
 
-        insertCmd.Parameters.AddWithValue(busca);
+            insertCmd.Parameters.AddWithValue(busca);
 
-        await insertCmd.ExecuteNonQueryAsync();
+            await insertCmd.ExecuteNonQueryAsync();
+        }
+        catch (Npgsql.PostgresException ex)
+        {
+            if (ex?.ConstraintName == "pessoas_apelido_key")
+            {
+                http.Response.StatusCode = 422;
+                return "unprocessable entity - apelido já usado";
+            }
+        }
     }
 
     http.Response.Headers.Location = $"/pessoas/{pessoa.Id}";

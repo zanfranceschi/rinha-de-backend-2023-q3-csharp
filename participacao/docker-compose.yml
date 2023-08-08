@@ -14,8 +14,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '0.5'
-          memory: '1.5GB'
+          cpus: '0.7'
+          memory: '2.1GB'
   
   api01:
     image: rinha-api
@@ -23,14 +23,14 @@ services:
     depends_on:
       - db
     environment:
-      - DB_CONNECTION_STRING=Host=db;Username=admin;Password=123;Database=rinha;Timeout=5;Command Timeout=5;Pooling=true;Maximum Pool Size=750;Connection Pruning Interval=1;Connection Idle Lifetime=2;Enlist=false;No Reset On Close=true;Max Auto Prepare=100
+      - DB_CONNECTION_STRING=Host=db;Username=admin;Password=123;Database=rinha;Connection Pruning Interval=1;Connection Idle Lifetime=2;Enlist=false;No Reset On Close=true
     expose:
       - "80"
     deploy:
       resources:
         limits:
-          cpus: '0.35'
-          memory: '0.5GB'
+          cpus: '0.4'
+          memory: '0.4GB'
   
   api02:
     image: rinha-api
@@ -38,14 +38,14 @@ services:
     depends_on:
       - db
     environment:
-      - DB_CONNECTION_STRING=Host=db;Username=admin;Password=123;Database=rinha;Timeout=5;Command Timeout=5;Pooling=true;Maximum Pool Size=750;Connection Pruning Interval=1;Connection Idle Lifetime=2;Enlist=false;No Reset On Close=true;Max Auto Prepare=100
+      - DB_CONNECTION_STRING=Host=db;Username=admin;Password=123;Database=rinha;Connection Pruning Interval=1;Connection Idle Lifetime=2;Enlist=false;No Reset On Close=true
     expose:
       - "80"
     deploy:
       resources:
         limits:
-          cpus: '0.35'
-          memory: '0.5GB'
+          cpus: '0.4'
+          memory: '0.4GB'
   
   nginx:
     image: nginx:latest
@@ -59,8 +59,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '0.3'
-          memory: '0.6GB'
+          cpus: '0.2'
+          memory: '0.1GB'
 
 networks:
   default:
