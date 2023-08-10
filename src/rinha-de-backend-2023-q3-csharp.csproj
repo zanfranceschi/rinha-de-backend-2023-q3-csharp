@@ -11,6 +11,7 @@
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="7.0.1" />
     <PackageReference Include="Npgsql" Version="7.0.4" />
     <PackageReference Include="Npgsql.DependencyInjection" Version="7.0.4" />
+    <PackageReference Include="NRedisStack" Version="0.8.0" />
   </ItemGroup>
 
 </Project>

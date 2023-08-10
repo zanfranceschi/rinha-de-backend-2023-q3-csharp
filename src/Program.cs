@@ -1,126 +1,94 @@
-using System.Collections.Concurrent;
 using Npgsql;
-using NpgsqlTypes;
 using RinhaDeBackEnd;
+using NRedisStack.RedisStackCommands;
+using StackExchange.Redis;
+using System.Collections.Concurrent;
 
 var builder = WebApplication.CreateBuilder(args);
-builder.Services.AddNpgsqlDataSource(
-    Environment.GetEnvironmentVariable("DB_CONNECTION_STRING") ??
+
+builder.Services.AddNpgsqlDataSource(Environment.GetEnvironmentVariable(
+    "DB_CONNECTION_STRING") ??
     "ERRO de connection string!!!");
 
-var app = builder.Build();
+ConnectionMultiplexer redis = ConnectionMultiplexer.Connect(
+        Environment.GetEnvironmentVariable("CACHE_CONNECTION_STRING") ??
+        "localhost");
 
-app.MapGet("/", async (HttpContext http, NpgsqlConnection conn) =>
+builder.Services.AddTransient(_ =>
 {
-    await using (conn)
-    {
-        await conn.OpenAsync();
-        await using var cmd = conn.CreateCommand();
-        cmd.CommandText = "select count(1) from pessoas";
-        var count = await cmd.ExecuteScalarAsync();
-        return $"contagem: {count} / {Environment.GetEnvironmentVariable("DB_CONNECTION_STRING")}";
-    }
+    return redis.GetDatabase();
 });
 
-app.MapPost("/pessoas", async (HttpContext http, NpgsqlConnection conn, Pessoa pessoa) =>
+builder.Services.AddSingleton(_ =>
 {
-    if (!pessoa.Nascimento.HasValue ||
-        string.IsNullOrEmpty(pessoa.Nome) ||
-        pessoa.Nome.Length > 100 ||
-        string.IsNullOrEmpty(pessoa.Apelido) ||
-        pessoa.Apelido.Length > 32)
+    return new ConcurrentQueue<Pessoa>();
+});
+
+builder.Services.AddHostedService<InsercaoRegistrosPessoas>();
+var app = builder.Build();
+
+app.MapPost("/pessoas", async (HttpContext http,
+                               IDatabase cache,
+                               ConcurrentQueue<Pessoa> processingQueue,
+                               Pessoa pessoa) =>
+{
+    if (!Pessoa.BasicamenteValida(pessoa))
     {
         http.Response.StatusCode = 422;
-        return "unprocessable entity - primeira verificação";
+        return new ResponseCriacao { Erro = "afe..." };
     }
 
-    foreach (var item in pessoa.Stack ?? Enumerable.Empty<string>())
-        if (item.Length > 32 || item.Length == 0)
-        {
-            http.Response.StatusCode = 422;
-            return "unprocessable entity - stack zuada";
-        }
+    var apelidoUsado = await cache.StringGetAsync($"pessoa-apelido:{pessoa.Apelido}");
 
-    await using (conn)
+    if (apelidoUsado.HasValue)
     {
-        await conn.OpenAsync();
-
-        pessoa.Id = Guid.NewGuid();
-
-        try
-        {
-            await using var insertCmd = conn.CreateCommand();
-            insertCmd.CommandText = "insert into pessoas (id, apelido, nome, nascimento, stack, busca) values ($1, $2, $3, $4, $5, $6)";
-            insertCmd.Parameters.AddWithValue(pessoa.Id);
-            insertCmd.Parameters.AddWithValue(pessoa.Apelido);
-            insertCmd.Parameters.AddWithValue(pessoa.Nome);
-            insertCmd.Parameters.AddWithValue(pessoa.Nascimento.Value);
-
-            if (pessoa.Stack is not null)
-                insertCmd.Parameters.AddWithValue(NpgsqlDbType.Jsonb, pessoa.Stack);
-            else
-                insertCmd.Parameters.AddWithValue(DBNull.Value);
-
-            var busca = $"{pessoa.Apelido}{pessoa.Nome}{string.Join("", pessoa.Stack?.Select(i => i) ?? new List<string>())}";
-
-            insertCmd.Parameters.AddWithValue(busca);
-
-            await insertCmd.ExecuteNonQueryAsync();
-        }
-        catch (Npgsql.PostgresException ex)
-        {
-            if (ex?.ConstraintName == "pessoas_apelido_key")
-            {
-                http.Response.StatusCode = 422;
-                return "unprocessable entity - apelido já usado";
-            }
-        }
+        http.Response.StatusCode = 422;
+        return new ResponseCriacao { Erro = "esse apelido já existe" };
     }
+
+    // Daqui pra baixo é só baixaria pra ficar bem na rinha kkkk
+    // Nunca confie numa fila na memória pra coisas importantes, nunca!
+    pessoa.Id = Guid.NewGuid();
+    var json = cache.JSON();
+    await json.SetAsync($"pessoa:{pessoa.Id}", "$", pessoa);
+    await cache.StringSetAsync($"pessoa-apelido:{pessoa.Apelido}", ".");
+    processingQueue.Enqueue(pessoa); // kkkk
 
     http.Response.Headers.Location = $"/pessoas/{pessoa.Id}";
     http.Response.StatusCode = 201;
-    return "created";
-});
+    return new ResponseCriacao { Pessoa = pessoa };
 
-app.MapGet("/pessoas/{id}", async (HttpContext http, NpgsqlConnection conn, Guid id) =>
+}).Produces<ResponseCriacao>();
+
+app.MapGet("/pessoas/{id}", async (HttpContext http, IDatabase cache, Guid id) =>
 {
-    await using (conn)
-    {
-        await conn.OpenAsync();
-        await using var cmd = conn.CreateCommand();
-        cmd.CommandText = "select apelido, nome, nascimento, stack from pessoas where id = $1 limit 1";
-        cmd.Parameters.AddWithValue(id);
-        await using var reader = await cmd.ExecuteReaderAsync();
+    var cachedPessoa = await cache.JSON().GetAsync<Pessoa>($"pessoa:{id}");
 
-        if (await reader.ReadAsync())
-        {
-            http.Response.StatusCode = 200;
-            var (apelido, nome, nascimento, stack) = (reader["apelido"], reader["nome"], reader["nascimento"], reader["stack"]);
-            return $"id: {id}, apelido: {apelido}, nome: {nome}, nascimento: {nascimento}, stack: {stack}";
-        }
-    }
+    if (cachedPessoa != null)
+        return new ResponseConsulta { Pessoa = cachedPessoa };
+
     http.Response.StatusCode = 404;
-    return "not found";
-});
+    return new ResponseConsulta { Erro = "Oops" };
+
+}).Produces<ResponseConsulta>();
 
 app.MapGet("/pessoas", async (HttpContext http, NpgsqlConnection conn, string? t) =>
 {
     if (string.IsNullOrEmpty(t))
     {
         http.Response.StatusCode = 400;
-        return new { pessoas = new List<Pessoa>(), erro = "t não informado" };
+        return new ResponseBusca { Erro = "'t' não informado" };
     }
 
-    var resultado = new List<Pessoa>();
+    var pessoas = new List<Pessoa>();
 
     await using (conn)
     {
         await conn.OpenAsync();
-        await using var selectCmd = conn.CreateCommand();
-        selectCmd.CommandText = "select id, apelido, nome, nascimento, stack from pessoas where busca like $1 limit 50";
-        selectCmd.Parameters.AddWithValue($"%{t}%");
-
-        var reader = await selectCmd.ExecuteReaderAsync();
+        await using var cmd = conn.CreateCommand();
+        cmd.CommandText = "select * from pessoas where busca like $1 limit 50;";
+        cmd.Parameters.AddWithValue($"%{t}%");
+        var reader = await cmd.ExecuteReaderAsync();
 
         while (await reader.ReadAsync())
         {
@@ -130,11 +98,12 @@ app.MapGet("/pessoas", async (HttpContext http, NpgsqlConnection conn, string? t
                                                           reader.GetDateTime(3),
                                                           reader["stack"] != DBNull.Value ? reader.GetFieldValue<IEnumerable<string>>(4) : null
                                                           );
-            resultado.Add(new Pessoa { Id = id, Apelido = apelido, Nome = nome, Nascimento = DateOnly.FromDateTime(nascimento), Stack = stack });
+            pessoas.Add(new Pessoa { Id = id, Apelido = apelido, Nome = nome, Nascimento = DateOnly.FromDateTime(nascimento), Stack = stack });
         }
     }
-    return new { pessoas = resultado, erro = "N/A" };
-});
+
+    return new ResponseBusca { Resultados = pessoas };
+}).Produces<ResponseBusca>();
 
 app.MapGet("/contagem-pessoas", async (NpgsqlConnection conn) =>
 {
