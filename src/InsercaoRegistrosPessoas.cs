@@ -10,7 +10,10 @@ public class InsercaoRegistrosPessoas
     private readonly ConcurrentQueue<Pessoa> _queue;
     private readonly NpgsqlConnection _conn;
 
-    public InsercaoRegistrosPessoas(ILogger<InsercaoRegistrosPessoas> logger, ConcurrentQueue<Pessoa> queue, NpgsqlConnection conn)
+    public InsercaoRegistrosPessoas(
+        ILogger<InsercaoRegistrosPessoas> logger,
+        ConcurrentQueue<Pessoa> queue,
+        NpgsqlConnection conn)
     {
         _logger = logger;
         _queue = queue;
@@ -26,12 +29,12 @@ public class InsercaoRegistrosPessoas
         while (!stoppingToken.IsCancellationRequested)
         {
             await Task.Delay(5_000);
-            Pessoa pessoa;
+
             var pessoas = new List<Pessoa>();
+
+            Pessoa pessoa;
             while (_queue.TryDequeue(out pessoa))
-            {
                 pessoas.Add(pessoa);
-            }
 
             if (pessoas.Count == 0)
                 continue;
@@ -43,7 +46,11 @@ public class InsercaoRegistrosPessoas
 
                 foreach (var p in pessoas)
                 {
-                    var batchCmd = new NpgsqlBatchCommand("insert into pessoas (id, apelido, nome, nascimento, stack, busca) values ($1, $2, $3, $4, $5, $6);");
+                    var batchCmd = new NpgsqlBatchCommand("""
+                        insert into pessoas
+                        (id, apelido, nome, nascimento, stack, busca)
+                        values ($1, $2, $3, $4, $5, $6);
+                    """);
                     batchCmd.Parameters.AddWithValue(p.Id);
                     batchCmd.Parameters.AddWithValue(p.Apelido);
                     batchCmd.Parameters.AddWithValue(p.Nome);

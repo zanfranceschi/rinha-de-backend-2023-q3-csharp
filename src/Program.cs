@@ -6,12 +6,14 @@ using System.Collections.Concurrent;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddNpgsqlDataSource(Environment.GetEnvironmentVariable(
-    "DB_CONNECTION_STRING") ??
-    "ERRO de connection string!!!");
+builder.Services.AddNpgsqlDataSource(
+    Environment.GetEnvironmentVariable(
+        "DB_CONNECTION_STRING") ??
+        "ERRO de connection string!!!");
 
 ConnectionMultiplexer redis = ConnectionMultiplexer.Connect(
-        Environment.GetEnvironmentVariable("CACHE_CONNECTION_STRING") ??
+    Environment.GetEnvironmentVariable(
+        "CACHE_CONNECTION_STRING") ??
         "localhost");
 
 builder.Services.AddTransient(_ =>
@@ -25,6 +27,7 @@ builder.Services.AddSingleton(_ =>
 });
 
 builder.Services.AddHostedService<InsercaoRegistrosPessoas>();
+
 var app = builder.Build();
 
 app.MapPost("/pessoas", async (HttpContext http,
@@ -96,9 +99,18 @@ app.MapGet("/pessoas", async (HttpContext http, NpgsqlConnection conn, string? t
                                                           reader.GetString(1),
                                                           reader.GetString(2),
                                                           reader.GetDateTime(3),
-                                                          reader["stack"] != DBNull.Value ? reader.GetFieldValue<IEnumerable<string>>(4) : null
+                                                          reader["stack"] != DBNull.Value
+                                                            ? reader.GetFieldValue<IEnumerable<string>>(4)
+                                                            : null
                                                           );
-            pessoas.Add(new Pessoa { Id = id, Apelido = apelido, Nome = nome, Nascimento = DateOnly.FromDateTime(nascimento), Stack = stack });
+            pessoas.Add(new Pessoa
+            {
+                Id = id,
+                Apelido = apelido,
+                Nome = nome,
+                Nascimento = DateOnly.FromDateTime(nascimento),
+                Stack = stack
+            });
         }
     }
 
