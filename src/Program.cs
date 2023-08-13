@@ -27,7 +27,7 @@ builder.Services.AddTransient(_ =>
 });
 
 builder.Services.AddHostedService<InsercaoRegistrosPessoas>();
-builder.Services.AddHostedService<BuscaPessoas>();
+builder.Services.AddHostedService<SincronizacaoBuscaPessoas>();
 
 var app = builder.Build();
 
@@ -53,12 +53,10 @@ app.MapPost("/pessoas", async (HttpContext http,
         return new ResponseCriacao { Erro = "esse apelido já existe" };
     }
 
-    // Daqui pra baixo é só baixaria pra ficar bem na rinha kkkk
-    // Nunca confie numa fila na memória pra coisas importantes, nunca!
     pessoa.Id = Guid.NewGuid();
     await cache.StringSetAsync(pessoa.Id.ToString(), JsonSerializer.Serialize(pessoa));
     await cache.StringSetAsync(pessoa.Apelido, ".");
-    processingQueue.Enqueue(pessoa); // kkkk
+    processingQueue.Enqueue(pessoa);
 
     http.Response.Headers.Location = $"/pessoas/{pessoa.Id}";
     http.Response.StatusCode = 201;

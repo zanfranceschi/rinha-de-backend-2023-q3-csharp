@@ -3,33 +3,30 @@ using StackExchange.Redis;
 using System.Text.Json;
 
 namespace RinhaDeBackEnd;
-public class BuscaPessoas
+public class SincronizacaoBuscaPessoas
     : BackgroundService
 {
-    private readonly ConcurrentDictionary<string, Pessoa> _pessasMap;
+    private readonly ConcurrentDictionary<string, Pessoa> _pessoasMap;
     private readonly IConnectionMultiplexer _multiplexer;
+    private readonly ISubscriber _subscriber;
 
-    public BuscaPessoas(
-        ConcurrentDictionary<string, Pessoa> pessasMap,
+    public SincronizacaoBuscaPessoas(
+        ConcurrentDictionary<string, Pessoa> pessoasMap,
         IConnectionMultiplexer multiplexer)
     {
-        _pessasMap = pessasMap;
+        _pessoasMap = pessoasMap;
         _multiplexer = multiplexer;
-
-        var sub = _multiplexer.GetSubscriber();
-
-        sub.Subscribe("busca", async (channel, message) =>
-        {
-            var pessoa = JsonSerializer.Deserialize<Pessoa>(message);
-            var buscaStackValue = pessoa.Stack == null ? "" : string.Join("", pessoa.Stack.Select(s => s.ToString()));
-            var buscaValue = $"{pessoa.Apelido}{pessoa.Nome}{buscaStackValue}" ?? "";
-            _pessasMap.TryAdd(buscaValue, pessoa);
-        });
+        _subscriber = _multiplexer.GetSubscriber();
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        // i know, i'm sorry to disappoint you
-        return;
+        await _subscriber.SubscribeAsync("busca", async (channel, message) =>
+        {
+            var pessoa = JsonSerializer.Deserialize<Pessoa>(message);
+            var buscaStackValue = pessoa.Stack == null ? "" : string.Join("", pessoa.Stack.Select(s => s.ToString()));
+            var buscaValue = $"{pessoa.Apelido}{pessoa.Nome}{buscaStackValue}" ?? "";
+            _pessoasMap.TryAdd(buscaValue, pessoa);
+        });
     }
 }

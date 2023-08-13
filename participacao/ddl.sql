@@ -5,6 +5,3 @@ CREATE TABLE public.pessoas (
 	nascimento DATE NOT NULL,
 	stack TEXT NULL
 );
-
-CREATE INDEX pessoas_nome_idx ON public.pessoas (nome);
-CREATE INDEX pessoas_stack_idx ON public.pessoas (stack);
