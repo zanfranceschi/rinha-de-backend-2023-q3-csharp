@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using Npgsql;
-using NpgsqlTypes;
+using StackExchange.Redis;
+using System.Text.Json;
 
 namespace RinhaDeBackEnd;
 public class InsercaoRegistrosPessoas
@@ -8,21 +9,27 @@ public class InsercaoRegistrosPessoas
 {
     private readonly ILogger<InsercaoRegistrosPessoas> _logger;
     private readonly ConcurrentQueue<Pessoa> _queue;
+    private readonly ConcurrentDictionary<string, Pessoa> _pessasMap;
+    private readonly IDatabase _cache;
     private readonly NpgsqlConnection _conn;
-
+    
     public InsercaoRegistrosPessoas(
         ILogger<InsercaoRegistrosPessoas> logger,
         ConcurrentQueue<Pessoa> queue,
+        ConcurrentDictionary<string, Pessoa> pessasMap,
+        IDatabase cache,
         NpgsqlConnection conn)
     {
         _logger = logger;
         _queue = queue;
+        _pessasMap = pessasMap;
+        _cache = cache;
         _conn = conn;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        await Task.Delay(5_000); // I know, sorry :´)
+        await Task.Delay(30_000); // I know, sorry :´)
 
         await _conn.OpenAsync();
 
@@ -48,23 +55,19 @@ public class InsercaoRegistrosPessoas
                 {
                     var batchCmd = new NpgsqlBatchCommand("""
                         insert into pessoas
-                        (id, apelido, nome, nascimento, stack, busca)
-                        values ($1, $2, $3, $4, $5, $6);
+                        (id, apelido, nome, nascimento, stack)
+                        values ($1, $2, $3, $4, $5);
                     """);
                     batchCmd.Parameters.AddWithValue(p.Id);
                     batchCmd.Parameters.AddWithValue(p.Apelido);
                     batchCmd.Parameters.AddWithValue(p.Nome);
                     batchCmd.Parameters.AddWithValue(p.Nascimento.Value);
-
-                    if (p.Stack is not null)
-                        batchCmd.Parameters.AddWithValue(NpgsqlDbType.Jsonb, p.Stack);
-                    else
-                        batchCmd.Parameters.AddWithValue(DBNull.Value);
-
-                    var busca = $"{p.Apelido}{p.Nome}{string.Join("", p.Stack?.Select(i => i) ?? new List<string>())}";
-                    batchCmd.Parameters.AddWithValue(busca);
-
+                    batchCmd.Parameters.AddWithValue(p.Stack == null ? DBNull.Value : p.Stack.Select(s => s.ToString()).ToArray());
                     batch.BatchCommands.Add(batchCmd);
+
+                    var buscaStackValue = p.Stack == null ? "" : string.Join("", p.Stack.Select(s => s.ToString()));
+                    var buscaValue = $"{p.Apelido}{p.Nome}{buscaStackValue}" ?? "";
+                    await _cache.PublishAsync("busca", JsonSerializer.Serialize<Pessoa>(p), CommandFlags.FireAndForget);
                 }
 
                 await batch.ExecuteNonQueryAsync();

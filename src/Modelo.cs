@@ -51,5 +51,5 @@ public class ResponseCriacao
 public class ResponseConsulta
     : Response
 {
-    public Pessoa? Pessoa { get; set; }
+    public object? Pessoa { get; set; }
 }

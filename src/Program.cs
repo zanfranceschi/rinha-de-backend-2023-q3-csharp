@@ -1,8 +1,8 @@
 using Npgsql;
 using RinhaDeBackEnd;
-using NRedisStack.RedisStackCommands;
 using StackExchange.Redis;
 using System.Collections.Concurrent;
+using System.Text.Json;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -11,37 +11,41 @@ builder.Services.AddNpgsqlDataSource(
         "DB_CONNECTION_STRING") ??
         "ERRO de connection string!!!");
 
-ConnectionMultiplexer redis = ConnectionMultiplexer.Connect(
-    Environment.GetEnvironmentVariable(
+var redisConnectionString = Environment.GetEnvironmentVariable(
         "CACHE_CONNECTION_STRING") ??
-        "localhost");
+        "localhost";
+
+ConnectionMultiplexer redis = ConnectionMultiplexer.Connect(redisConnectionString);
+
+builder.Services.AddSingleton(_ => new ConcurrentDictionary<string, Pessoa>());
+builder.Services.AddSingleton( _ => new ConcurrentQueue<Pessoa>());
+builder.Services.AddSingleton<IConnectionMultiplexer>( _ => ConnectionMultiplexer.Connect(redisConnectionString));
 
 builder.Services.AddTransient(_ =>
 {
     return redis.GetDatabase();
 });
 
-builder.Services.AddSingleton(_ =>
-{
-    return new ConcurrentQueue<Pessoa>();
-});
-
 builder.Services.AddHostedService<InsercaoRegistrosPessoas>();
+builder.Services.AddHostedService<BuscaPessoas>();
 
 var app = builder.Build();
 
 app.MapPost("/pessoas", async (HttpContext http,
-                               IDatabase cache,
+                               IConnectionMultiplexer multiplexer,
                                ConcurrentQueue<Pessoa> processingQueue,
                                Pessoa pessoa) =>
 {
+    
+    var cache = multiplexer.GetDatabase();
+    
     if (!Pessoa.BasicamenteValida(pessoa))
     {
         http.Response.StatusCode = 422;
         return new ResponseCriacao { Erro = "afe..." };
     }
 
-    var apelidoUsado = await cache.StringGetAsync($"pessoa-apelido:{pessoa.Apelido}");
+    var apelidoUsado = await cache.StringGetAsync(pessoa.Apelido);
 
     if (apelidoUsado.HasValue)
     {
@@ -52,9 +56,8 @@ app.MapPost("/pessoas", async (HttpContext http,
     // Daqui pra baixo é só baixaria pra ficar bem na rinha kkkk
     // Nunca confie numa fila na memória pra coisas importantes, nunca!
     pessoa.Id = Guid.NewGuid();
-    var json = cache.JSON();
-    await json.SetAsync($"pessoa:{pessoa.Id}", "$", pessoa);
-    await cache.StringSetAsync($"pessoa-apelido:{pessoa.Apelido}", ".");
+    await cache.StringSetAsync(pessoa.Id.ToString(), JsonSerializer.Serialize(pessoa));
+    await cache.StringSetAsync(pessoa.Apelido, ".");
     processingQueue.Enqueue(pessoa); // kkkk
 
     http.Response.Headers.Location = $"/pessoas/{pessoa.Id}";
@@ -65,17 +68,20 @@ app.MapPost("/pessoas", async (HttpContext http,
 
 app.MapGet("/pessoas/{id}", async (HttpContext http, IDatabase cache, Guid id) =>
 {
-    var cachedPessoa = await cache.JSON().GetAsync<Pessoa>($"pessoa:{id}");
+    var cachedPessoa = await cache.StringGetAsync(id.ToString());
 
-    if (cachedPessoa != null)
-        return new ResponseConsulta { Pessoa = cachedPessoa };
+    if (!cachedPessoa.IsNull)
+        return new ResponseConsulta
+        {
+            Pessoa = JsonSerializer.Deserialize<Pessoa>(cachedPessoa)
+        };
 
     http.Response.StatusCode = 404;
     return new ResponseConsulta { Erro = "Oops" };
 
 }).Produces<ResponseConsulta>();
 
-app.MapGet("/pessoas", async (HttpContext http, NpgsqlConnection conn, string? t) =>
+app.MapGet("/pessoas", (HttpContext http, NpgsqlConnection conn, ConcurrentDictionary<string, Pessoa> buscaMap, string? t) =>
 {
     if (string.IsNullOrEmpty(t))
     {
@@ -83,37 +89,7 @@ app.MapGet("/pessoas", async (HttpContext http, NpgsqlConnection conn, string? t
         return new ResponseBusca { Erro = "'t' não informado" };
     }
 
-    var pessoas = new List<Pessoa>();
-
-    await using (conn)
-    {
-        await conn.OpenAsync();
-        await using var cmd = conn.CreateCommand();
-        cmd.CommandText = "select * from pessoas where busca like $1 limit 50;";
-        cmd.Parameters.AddWithValue($"%{t}%");
-        var reader = await cmd.ExecuteReaderAsync();
-
-        while (await reader.ReadAsync())
-        {
-            var (id, apelido, nome, nascimento, stack) = (reader.GetGuid(0),
-                                                          reader.GetString(1),
-                                                          reader.GetString(2),
-                                                          reader.GetDateTime(3),
-                                                          reader["stack"] != DBNull.Value
-                                                            ? reader.GetFieldValue<IEnumerable<string>>(4)
-                                                            : null
-                                                          );
-            pessoas.Add(new Pessoa
-            {
-                Id = id,
-                Apelido = apelido,
-                Nome = nome,
-                Nascimento = DateOnly.FromDateTime(nascimento),
-                Stack = stack
-            });
-        }
-    }
-
+    var pessoas = buscaMap.Where(p => p.Key.Contains(t)).Take(50).Select(p => p.Value).ToList();
     return new ResponseBusca { Resultados = pessoas };
 }).Produces<ResponseBusca>();
 

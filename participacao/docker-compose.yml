@@ -19,7 +19,7 @@ services:
 
   cache:
     hostname: cache
-    image: redislabs/redisearch:latest
+    image: redis:latest
     ports:
       - '6379:6379'
     deploy:
