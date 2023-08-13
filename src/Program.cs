@@ -87,7 +87,10 @@ app.MapGet("/pessoas", (HttpContext http, NpgsqlConnection conn, ConcurrentDicti
         return new ResponseBusca { Erro = "'t' não informado" };
     }
 
-    var pessoas = buscaMap.Where(p => p.Key.Contains(t)).Take(50).Select(p => p.Value).ToList();
+    var pessoas = buscaMap.Where(p => p.Key.Contains(t))
+                            .Take(50)
+                            .Select(p => p.Value)
+                            .ToList();
     return new ResponseBusca { Resultados = pessoas };
 }).Produces<ResponseBusca>();
 
