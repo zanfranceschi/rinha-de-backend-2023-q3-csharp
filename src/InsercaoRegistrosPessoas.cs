@@ -12,7 +12,7 @@ public class InsercaoRegistrosPessoas
     private readonly ConcurrentDictionary<string, Pessoa> _pessasMap;
     private readonly IDatabase _cache;
     private readonly NpgsqlConnection _conn;
-    
+
     public InsercaoRegistrosPessoas(
         ILogger<InsercaoRegistrosPessoas> logger,
         ConcurrentQueue<Pessoa> queue,
@@ -29,9 +29,22 @@ public class InsercaoRegistrosPessoas
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        await Task.Delay(30_000); // I know, sorry :´)
+        bool connected = false;
 
-        await _conn.OpenAsync();
+        while (!connected)
+        {
+            try
+            {
+                await _conn.OpenAsync();
+                connected = true;
+                _logger.LogInformation("connected to postgres!!! yey");
+            }
+            catch (NpgsqlException)
+            {
+                _logger.LogWarning("retrying connection to postgres");
+                await Task.Delay(1_000);
+            }
+        }
 
         while (!stoppingToken.IsCancellationRequested)
         {
