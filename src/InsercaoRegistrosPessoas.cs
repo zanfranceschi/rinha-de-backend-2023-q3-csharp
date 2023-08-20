@@ -42,13 +42,13 @@ public class InsercaoRegistrosPessoas
             catch (NpgsqlException)
             {
                 _logger.LogWarning("retrying connection to postgres");
-                await Task.Delay(5_000);
+                await Task.Delay(2_000);
             }
         }
 
         while (!stoppingToken.IsCancellationRequested)
         {
-            await Task.Delay(1_000);
+            await Task.Delay(5_000);
 
             var pessoas = new List<Pessoa>();
 
