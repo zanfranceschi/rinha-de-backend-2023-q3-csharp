@@ -14,7 +14,7 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '0.07'
+          cpus: '0.05'
           memory: '0.4GB'
 
   cache:
@@ -26,7 +26,7 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '0.1'
+          cpus: '0.06'
           memory: '0.5GB'
   
   api01:
@@ -37,8 +37,8 @@ services:
       - cache
     environment:
       # https://learn.microsoft.com/en-us/dotnet/core/runtime-config/garbage-collector
-      - _DB_CONNECTION_STRING=Host=db;Username=admin;Password=123;Database=rinha;Connection Pruning Interval=1;Connection Idle Lifetime=2;
-      - DB_CONNECTION_STRING=Host=db;Username=admin;Password=123;Database=rinha;
+      - DB_CONNECTION_STRING=Host=db;Username=admin;Password=123;Database=rinha;Connection Pruning Interval=1;Connection Idle Lifetime=2;
+      - _DB_CONNECTION_STRING=Host=db;Username=admin;Password=123;Database=rinha;
       - CACHE_CONNECTION_STRING=cache
       - DOTNET_GCConserveMemory=1
       - DOTNET_gcServer=1
@@ -51,7 +51,7 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '0.565'
+          cpus: '0.568'
           memory: '1.0GB'
   
   api02:
@@ -62,8 +62,8 @@ services:
       - cache
     environment:
       # https://learn.microsoft.com/en-us/dotnet/core/runtime-config/garbage-collector
-      - _DB_CONNECTION_STRING=Host=db;Username=admin;Password=123;Database=rinha;Connection Pruning Interval=1;Connection Idle Lifetime=2;
-      - DB_CONNECTION_STRING=Host=db;Username=admin;Password=123;Database=rinha;
+      - DB_CONNECTION_STRING=Host=db;Username=admin;Password=123;Database=rinha;Connection Pruning Interval=1;Connection Idle Lifetime=2;
+      - _DB_CONNECTION_STRING=Host=db;Username=admin;Password=123;Database=rinha;
       - CACHE_CONNECTION_STRING=cache
       - DOTNET_GCConserveMemory=1
       - DOTNET_gcServer=1
@@ -76,7 +76,7 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '0.565'
+          cpus: '0.568'
           memory: '1.0GB'
   
   nginx:
