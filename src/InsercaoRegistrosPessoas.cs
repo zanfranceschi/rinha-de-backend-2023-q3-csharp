@@ -42,13 +42,13 @@ public class InsercaoRegistrosPessoas
             catch (NpgsqlException)
             {
                 _logger.LogWarning("retrying connection to postgres");
-                await Task.Delay(1_000);
+                await Task.Delay(5_000);
             }
         }
 
         while (!stoppingToken.IsCancellationRequested)
         {
-            await Task.Delay(5_000);
+            await Task.Delay(1_000);
 
             var pessoas = new List<Pessoa>();
 
@@ -66,11 +66,12 @@ public class InsercaoRegistrosPessoas
 
                 foreach (var p in pessoas)
                 {
-                    var batchCmd = new NpgsqlBatchCommand("""
+                    var batchCmd = new NpgsqlBatchCommand(@"
                         insert into pessoas
                         (id, apelido, nome, nascimento, stack)
-                        values ($1, $2, $3, $4, $5);
-                    """);
+                        values ($1, $2, $3, $4, $5)
+                        on conflict do nothing;
+                    ");
                     batchCmd.Parameters.AddWithValue(p.Id);
                     batchCmd.Parameters.AddWithValue(p.Apelido);
                     batchCmd.Parameters.AddWithValue(p.Nome);

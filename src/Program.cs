@@ -21,7 +21,7 @@ builder.Services.AddSingleton(_ => new ConcurrentDictionary<string, Pessoa>());
 builder.Services.AddSingleton( _ => new ConcurrentQueue<Pessoa>());
 builder.Services.AddSingleton<IConnectionMultiplexer>( _ => ConnectionMultiplexer.Connect(redisConnectionString));
 
-builder.Services.AddTransient(_ =>
+builder.Services.AddSingleton<IDatabase>(_ =>
 {
     return redis.GetDatabase();
 });
@@ -32,13 +32,10 @@ builder.Services.AddHostedService<SincronizacaoBuscaPessoas>();
 var app = builder.Build();
 
 app.MapPost("/pessoas", async (HttpContext http,
-                               IConnectionMultiplexer multiplexer,
+                               IDatabase cache,
                                ConcurrentQueue<Pessoa> processingQueue,
                                Pessoa pessoa) =>
 {
-    
-    var cache = multiplexer.GetDatabase();
-    
     if (!Pessoa.BasicamenteValida(pessoa))
     {
         http.Response.StatusCode = 422;
