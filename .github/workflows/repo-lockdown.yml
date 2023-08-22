@@ -1,12 +1,13 @@
 name: 'Repo Lockdown'
 
 on:
-  issues:
-    types: opened
-  pull_request_target:
-    types: opened
-  schedule:
-    - cron: '0 * * * *'
+  workflow_dispatch:
+    issues:
+      types: opened
+    pull_request_target:
+      types: opened
+    schedule:
+      - cron: '0 * * * *'
 
 permissions:
   issues: write
