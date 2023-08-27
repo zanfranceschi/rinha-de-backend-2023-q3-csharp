@@ -29,7 +29,7 @@ services:
           cpus: '0.06'
           memory: '0.5GB'
   
-  api01:
+  api01: &api
     image: zanfranceschi/rinha-api-2023
     hostname: rinha-api01
     depends_on:
@@ -55,29 +55,7 @@ services:
           memory: '1.0GB'
   
   api02:
-    image: zanfranceschi/rinha-api-2023
-    hostname: rinha-api02
-    depends_on:
-      - db
-      - cache
-    environment:
-      # https://learn.microsoft.com/en-us/dotnet/core/runtime-config/garbage-collector
-      - DB_CONNECTION_STRING=Host=db;Username=admin;Password=123;Database=rinha;Connection Pruning Interval=1;Connection Idle Lifetime=2;
-      - _DB_CONNECTION_STRING=Host=db;Username=admin;Password=123;Database=rinha;
-      - CACHE_CONNECTION_STRING=cache
-      - DOTNET_GCConserveMemory=1
-      - DOTNET_gcServer=1
-      - DOTNET_gcConcurrent=0
-      - _DOTNET_GCHeapCount=0x1
-      - _DOTNET_GCNoAffinitize=1
-      - _DOTNET_GCHeapHardLimitPercent=0x10
-    expose:
-      - "80"
-    deploy:
-      resources:
-        limits:
-          cpus: '0.568'
-          memory: '1.0GB'
+    <<: *api
   
   nginx:
     image: nginx:latest
