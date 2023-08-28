@@ -49,10 +49,13 @@ app.MapPost("/pessoas", async (HttpContext http,
         http.Response.StatusCode = 422;
         return new ResponseCriacao { Erro = "esse apelido já existe" };
     }
-
     pessoa.Id = Guid.NewGuid();
-    await cache.StringSetAsync(pessoa.Id.ToString(), JsonSerializer.Serialize(pessoa));
-    await cache.StringSetAsync(pessoa.Apelido, ".");
+    var redisPayload = new List<KeyValuePair<RedisKey, RedisValue>>
+    {
+        new KeyValuePair<RedisKey, RedisValue>(new RedisKey(pessoa.Id.ToString()), new RedisValue(JsonSerializer.Serialize(pessoa))),
+        new KeyValuePair<RedisKey, RedisValue>(new RedisKey(pessoa.Apelido), RedisValue.EmptyString)
+    };
+    await cache.StringSetAsync(redisPayload.ToArray());
     processingQueue.Enqueue(pessoa);
 
     http.Response.Headers.Location = $"/pessoas/{pessoa.Id}";
@@ -81,7 +84,7 @@ app.MapGet("/pessoas", (HttpContext http, NpgsqlConnection conn, ConcurrentDicti
     if (string.IsNullOrEmpty(t))
     {
         http.Response.StatusCode = 400;
-        return new ResponseBusca { Erro = "'t' não informado" };
+        return new ResponseBusca { Resultados = new List<Pessoa>() };
     }
 
     var pessoas = buscaMap.Where(p => p.Key.Contains(t))

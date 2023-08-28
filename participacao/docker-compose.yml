@@ -1,4 +1,4 @@
-version: '3.5'
+version: "3.5"
 services:
   db:
     image: postgres:latest
@@ -14,20 +14,20 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '0.05'
-          memory: '0.4GB'
+          cpus: "0.05"
+          memory: "0.4GB"
 
   cache:
     hostname: cache
     image: redis:latest
     command: redis-server --save "" --appendonly no
     ports:
-      - '6379:6379'
+      - "6379:6379"
     deploy:
       resources:
         limits:
-          cpus: '0.06'
-          memory: '0.5GB'
+          cpus: "0.06"
+          memory: "0.5GB"
   
   api01: &api
     image: zanfranceschi/rinha-api-2023
@@ -46,16 +46,20 @@ services:
       - _DOTNET_GCHeapCount=0x1
       - _DOTNET_GCNoAffinitize=1
       - _DOTNET_GCHeapHardLimitPercent=0x10
+    ports:
+      - "8081:80"
     expose:
       - "80"
     deploy:
       resources:
         limits:
-          cpus: '0.568'
-          memory: '1.0GB'
+          cpus: "0.568"
+          memory: "1.0GB"
   
   api02:
     <<: *api
+    ports:
+      - "8082:80"
   
   nginx:
     image: nginx:latest
@@ -69,8 +73,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '0.2'
-          memory: '0.1GB'
+          cpus: "0.2"
+          memory: "0.1GB"
 
 networks:
   default:
