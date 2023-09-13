@@ -2,65 +2,58 @@ version: "3.5"
 services:
   db:
     image: postgres:latest
+    command: postgres -c 'max_connections=400'
     hostname: db
     environment:
       - POSTGRES_PASSWORD=123
       - POSTGRES_USER=admin
       - POSTGRES_DB=rinha
-    ports:
-      - "5432:5432"
+    network_mode: host
     volumes:
       - ./ddl.sql:/docker-entrypoint-initdb.d/ddl.sql
     deploy:
       resources:
         limits:
-          cpus: "0.05"
-          memory: "0.4GB"
+          cpus: "0.5"
+          memory: "1.8GB"
 
   cache:
     hostname: cache
     image: redis:latest
     command: redis-server --save "" --appendonly no
-    ports:
-      - "6379:6379"
+    network_mode: host
     deploy:
       resources:
         limits:
-          cpus: "0.06"
-          memory: "0.5GB"
-  
+          cpus: "0.05"
+          memory: "0.2GB"
+
   api01: &api
-    image: zanfranceschi/rinha-api-2023
-    hostname: rinha-api01
+    # image: zanfranceschi/rinha-api-2023
+    build: ../
     depends_on:
       - db
       - cache
     environment:
       # https://learn.microsoft.com/en-us/dotnet/core/runtime-config/garbage-collector
-      - DB_CONNECTION_STRING=Host=db;Username=admin;Password=123;Database=rinha;Connection Pruning Interval=1;Connection Idle Lifetime=2;
-      - _DB_CONNECTION_STRING=Host=db;Username=admin;Password=123;Database=rinha;
-      - CACHE_CONNECTION_STRING=cache
-      - DOTNET_GCConserveMemory=1
-      - DOTNET_gcServer=1
-      - DOTNET_gcConcurrent=0
-      - _DOTNET_GCHeapCount=0x1
-      - _DOTNET_GCNoAffinitize=1
-      - _DOTNET_GCHeapHardLimitPercent=0x10
-    ports:
-      - "8081:80"
-    expose:
-      - "80"
+      - DB_CONNECTION_STRING=Host=localhost;Username=admin;Password=123;Database=rinha;MaxPoolSize=60;
+      - CACHE_CONNECTION_STRING=localhost
+      - HTTP_PORT=8080
+    network_mode: host
     deploy:
       resources:
         limits:
-          cpus: "0.568"
-          memory: "1.0GB"
-  
+          cpus: "0.4"
+          memory: "0.4GB"
+
   api02:
     <<: *api
-    ports:
-      - "8082:80"
-  
+    environment:
+      # https://learn.microsoft.com/en-us/dotnet/core/runtime-config/garbage-collector
+      - DB_CONNECTION_STRING=Host=localhost;Username=admin;Password=123;Database=rinha;MaxPoolSize=60;
+      - CACHE_CONNECTION_STRING=cache
+      - HTTP_PORT=8081
+
   nginx:
     image: nginx:latest
     volumes:
@@ -68,15 +61,9 @@ services:
     depends_on:
       - api01
       - api02
-    ports:
-      - "9999:9999"
+    network_mode: host
     deploy:
       resources:
         limits:
-          cpus: "0.2"
-          memory: "0.1GB"
-
-networks:
-  default:
-    driver: bridge
-    name: rinha
+          cpus: "0.15"
+          memory: "0.2GB"
