@@ -71,7 +71,7 @@ public class InsercaoRegistrosPessoas
                     insert into pessoas
                     (id, apelido, nome, nascimento, stack)
                     values ($1, $2, $3, $4, $5)
-                    on conflict do nothing;
+                    on conflict (id) do nothing;
                 ");
     
                 batch.BatchCommands.Add(batchCmd);
